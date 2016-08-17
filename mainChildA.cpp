@@ -1,6 +1,9 @@
 #include "common.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+
+#define LOG(args...) log("mainChildA", ##args)
 
 namespace {
 
@@ -29,7 +32,9 @@ static bool readInt(FILE* aFp, int& aNum) {
   return true;;
 }
 
-void mainChildA(int aFdin) {
+int mainChildA(int aFdin) {
+  LOG("Child process A starts.\n");
+
   FILE* fpin = fdopen(aFdin, "r");
 
   while (1) {
@@ -37,15 +42,21 @@ void mainChildA(int aFdin) {
     if (!readInt(fpin, cnt)) {
       break;
     }
-    printf("Reading %d nums\n", cnt);
 
     int v;
     unsigned int sum = 0;
+    std::vector<int> nums;
     for (int i = 0; i < cnt; i++) {
       readInt(fpin, v);
-      printf("Read %d\n", v);
+      nums.push_back(v);
       sum += v;
     }
-    printf("Avg: %lf\n", (double)sum / cnt);
+
+    LOG("Random Number Received: %s\n", vecToString(nums).c_str());
+    LOG("Average: %lf\n", (double)sum / cnt);
   }
+
+  LOG("Child process A exits.\n");
+
+  return 0;
 }

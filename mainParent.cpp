@@ -17,6 +17,8 @@
 #include "mainChildA.h"
 #include "mainChildB.h"
 
+#define LOG(args...) log("mainParent", ##args)
+
 static int writeInt(int aFd, int aNum) {
   char buffer[100];
   sprintf(buffer, "%d\n", aNum);
@@ -69,11 +71,11 @@ int main(void)
   const key_t SHM_KEY = 1234;
   int shmId = shmget(SHM_KEY, sizeof(SharedMemory), IPC_CREAT | 0666);
   SharedMemory* sm = (SharedMemory*) shmat(shmId, NULL, 0);
-  if (-1 == sm) {
+  if ((SharedMemory*)-1 == sm) {
     // Unable to create shared memory for comminication.
     return -1;
   }
-  printf("Parent sm address: %p\n", sm);
+  LOG("Parent sm address: %p\n", sm);
 
   // Reset sm->mCnt before forking childB.
   sm->mCnt = 0;
@@ -103,7 +105,7 @@ int main(void)
 
     // sm->mCnt is 0 now. Good to go!
     // Read a number from console.
-    printf("Please input a integer between 1 and 50:\n");
+    LOG("Enter a positive integer or -1 to exit: \n");
     int n;
     std::cin >> n;
 
@@ -114,16 +116,18 @@ int main(void)
 
     // Input value sanity check.
     if (n <= 0 || n > 50) {
-      printf("Invalud input range: %d\n", n);
+      LOG("Invalud input range: %d\n", n);
       continue;
     }
 
-    // Set sm->mCnt to notify the child it's good to go!
-    sm->mCnt = n;
+    std::vector<int> nums = genRandomNumbers(n);
+    LOG("Generating %d random integers: %s\n", n, vecToString(nums).c_str());
+
+    // Notify childA and childB to receive numbers.
+    writeInt(fdout, n); // childA
+    sm->mCnt = n; // childB
 
     // Write out values to pipe and shared memory to be consumed.
-    writeInt(fdout, n);
-    std::vector<int> nums = genRandomNumbers(n);
     for (size_t i = 0; i < nums.size(); i++) {
       sm->mNums[i] = nums[i];
       writeInt(fdout, nums[i]);
@@ -133,20 +137,22 @@ int main(void)
   close(fdout); // Notify childA we are done.
   sm->mCnt = -1; // Notify childB we are done.
 
+  LOG("Prcess Waits\n");
+
   int status;
   int ret = waitpid(pidChildA, &status, 0);
   if (-1 == ret) {
-    perror("waitpid error\n");
+    LOG("waitpid error\n");
     return -1;
   }
 
-  int ret = waitpid(pidChildA, &status, 0);
+  ret = waitpid(pidChildB, &status, 0);
   if (-1 == ret) {
-    perror("waitpid error\n");
+    LOG("waitpid error\n");
     return -1;
   }
 
-  printf("Waited child returned.\n");
+  LOG("Prcess Exits\n");
 
   return 0;
 }
